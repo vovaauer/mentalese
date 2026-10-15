@@ -1,0 +1,6 @@
+.venv/
+vendor/
+models/
+voices/
+__pycache__/
+*.wav
