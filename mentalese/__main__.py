@@ -21,6 +21,7 @@ import soundfile as sf
 from . import audio
 from .incoming import Incoming
 from .langs import LANGS
+from .mt import DEFAULT_STYLE
 
 ROOT = Path(__file__).resolve().parent.parent
 VOICE_WAV = ROOT / "voices/me.wav"
@@ -107,7 +108,7 @@ def cmd_run(args):
     from .mt import Translator
     from .tts import TTS
 
-    asr, mt, tts = ASR(), Translator(), TTS()
+    asr, mt, tts = ASR(), Translator(style=args.style), TTS()
     tts.set_voice(str(VOICE_WAV), VOICE_TXT.read_text())
     # warm up every stage so the first real sentence isn't slow
     asr.transcribe(np.zeros(SR, np.float32))
@@ -204,7 +205,7 @@ def cmd_say(args):
     from .mt import Translator
     from .tts import TTS
 
-    mt, tts = Translator(), TTS()
+    mt, tts = Translator(style=args.style), TTS()
     tts.set_voice(str(VOICE_WAV), VOICE_TXT.read_text())
     text = " ".join(args.text)
     out = mt.translate(text, None, args.to) if args.to != "en" else text
@@ -222,6 +223,8 @@ def main():
     sub.add_parser("record", help="record your voice sample")
     r = sub.add_parser("run", help="start translating")
     r.add_argument("--to", default="ru", choices=list(LANGS), help="language Discord hears")
+    r.add_argument("--style", default=DEFAULT_STYLE,
+                   help='tone of translations, in plain words; --style "" for neutral')
     r.add_argument("--me", default="en", choices=list(LANGS), help="language for subtitles of what others say")
     r.add_argument("--silence-ms", type=int, default=400,
                    help="how long a pause counts as the end of a sentence (lower = faster, may cut you off)")
@@ -229,6 +232,7 @@ def main():
     r.add_argument("--input", help=argparse.SUPPRESS)  # read from another PipeWire source (testing)
     s = sub.add_parser("say", help="hear your cloned voice say something (translated from English)")
     s.add_argument("--to", default="ru", choices=list(LANGS))
+    s.add_argument("--style", default=DEFAULT_STYLE)
     s.add_argument("text", nargs="+")
     sub.add_parser("remove-mic", help="remove the virtual mic")
     args = p.parse_args()
