@@ -1,4 +1,4 @@
-"""Translation with Tencent Hy-MT2-1.8B, served by a local llama.cpp server."""
+"""Translation with Tencent Hy-MT2-7B, served by a local llama.cpp server."""
 
 import atexit
 import socket
