@@ -2,6 +2,7 @@
 
 import atexit
 import ctypes
+import os
 import signal
 import socket
 import subprocess
@@ -35,20 +36,36 @@ DEFAULT_STYLE = "casual and friendly, like friends chatting on Discord while gam
 
 
 def _die_with_parent():
-    """Linux: SIGTERM the server when mentalese exits, even on a crash or a closed terminal."""
-    ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+    """Linux: kill the server when mentalese exits, even on a crash or a closed terminal.
+    SIGKILL, not SIGTERM: llama-server sometimes ignores SIGTERM and lingers, holding ~5 GB of VRAM."""
+    ctypes.CDLL("libc.so.6").prctl(1, signal.SIGKILL)  # PR_SET_PDEATHSIG
+
+
+def _kill_leftovers():
+    """Kill translator servers orphaned by an earlier mentalese run (only ours, matched by binary path)."""
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                argv0 = f.read().split(b"\0")[0].decode()
+        except OSError:
+            continue
+        if argv0 == str(SERVER_BIN):
+            os.kill(int(pid), signal.SIGKILL)
 
 
 class Translator:
     def __init__(self, style: str | None = DEFAULT_STYLE):
         self.style = style  # None or "" = plain translation
+        _kill_leftovers()
         with socket.socket() as sock:  # grab a free port
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
         self.url = f"http://127.0.0.1:{port}"
         self.proc = subprocess.Popen(
             [str(SERVER_BIN), "-m", str(MODEL), "--port", str(port), "--host", "127.0.0.1",
-             "-ngl", "99", "-c", "2048", "-np", "1", "--no-webui"],
+             "-ngl", "99", "-np", "1", "--no-webui",
+             # a spoken sentence is ~50 tokens: small context and batches keep VRAM down
+             "-c", "1024", "-b", "512", "-ub", "256", "-fa", "on"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_die_with_parent,
         )
         atexit.register(self.close)
@@ -101,4 +118,4 @@ class Translator:
 
     def close(self):
         if self.proc.poll() is None:
-            self.proc.terminate()
+            self.proc.kill()

@@ -116,6 +116,7 @@ def cmd_run(args):
     asr.transcribe(np.zeros(SR, np.float32))
     mt.translate("hello", "en", "ru")
     tts.warmup()
+    torch.cuda.empty_cache()  # hand back what loading and warmup used but no longer need
     player = audio.Player(24000, device=audio.SINK)
     monitor = audio.Player(24000) if args.monitor else None
 
@@ -133,13 +134,14 @@ def cmd_run(args):
     segmenters: dict[int, Segmenter] = {}
 
     def on_frame(num, frame):
-        seg = segmenters.get(num) or segmenters.setdefault(num, Segmenter(args.silence_ms))
+        seg = segmenters.get(num) or segmenters.setdefault(num, Segmenter(args.their_silence_ms))
         utt = seg.feed(frame)
         if utt is not None:
             utterances.put(("in", num, time.perf_counter(), utt))
 
-    Incoming(on_open=lambda num, user: segmenters.setdefault(num, Segmenter(args.silence_ms)),
-             on_frame=on_frame, on_close=lambda num: segmenters.pop(num, None), frame=FRAME)
+    if not args.no_subtitles:
+        Incoming(on_open=lambda num, user: segmenters.setdefault(num, Segmenter(args.their_silence_ms)),
+                 on_frame=on_frame, on_close=lambda num: segmenters.pop(num, None), frame=FRAME)
 
     def commands():
         for line in sys.stdin:
@@ -170,6 +172,7 @@ def cmd_run(args):
             kind, num, t_end, utt = item
             if len(utt) < SR * 0.3:
                 continue
+            t_start = time.perf_counter()  # later than t_end if earlier sentences were still being processed
             src, text = asr.transcribe(utt)
             t_asr = time.perf_counter()
             if not text:
@@ -181,6 +184,7 @@ def cmd_run(args):
                 sub = mt.translate(text, src, args.me)
                 color = COLORS[num % len(COLORS)]
                 print(f"\r{color}▌ {sub}{RESET}  {DIM}({text}){RESET}\n> ", end="", flush=True)
+                torch.cuda.empty_cache()
                 continue
 
             to = state["to"]
@@ -193,8 +197,10 @@ def cmd_run(args):
                 if monitor:
                     monitor.play(chunk)
             t_tts = t_tts or time.perf_counter()
+            torch.cuda.empty_cache()  # keeps VRAM ~0.8 GB lower; no measurable latency cost
             print(f"\r{DIM}you: {text}\n  → {out}   "
-                  f"[{ms(t_end, t_tts)} ms: asr {ms(t_end, t_asr)} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
+                  f"[{ms(t_end, t_tts)} ms: {'wait ' + ms(t_end, t_start) + ' + ' if t_start - t_end > 0.05 else ''}"
+                  f"asr {ms(t_start, t_asr)} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
                   f"{RESET}\n> ", end="", flush=True)
     except KeyboardInterrupt:
         pass
@@ -230,6 +236,9 @@ def main():
     r.add_argument("--me", default="en", choices=list(LANGS), help="language for subtitles of what others say")
     r.add_argument("--silence-ms", type=int, default=400,
                    help="how long a pause counts as the end of a sentence (lower = faster, may cut you off)")
+    r.add_argument("--their-silence-ms", type=int, default=700,
+                   help="same for other people; longer so subtitles get whole sentences, not fragments")
+    r.add_argument("--no-subtitles", action="store_true", help="don't listen to the Vesktop plugin")
     r.add_argument("--monitor", action="store_true", help="also play the translation in your headphones")
     r.add_argument("--input", help=argparse.SUPPRESS)  # read from another PipeWire source (testing)
     s = sub.add_parser("say", help="hear your cloned voice say something (translated from English)")

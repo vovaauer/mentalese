@@ -24,6 +24,9 @@ class ASR:
         assert sr == 16000
         inputs = self.processor.apply_transcription_request(
             audio=audio, prompt=self.hotwords).to(self.model.device, self.model.dtype)
-        out = self.model.generate(**inputs, max_new_tokens=256, do_sample=False)
+        # cap output by audio length (fast Russian is ~12 tokens/s; 20 leaves headroom): on tiny clips the model
+        # can loop on one token until the cap, which cost up to 3 s at a flat 256
+        max_tokens = int(len(audio) / sr * 20) + 16
+        out = self.model.generate(**inputs, max_new_tokens=max_tokens, do_sample=False)
         parsed = self.processor.decode(out[:, inputs["input_ids"].shape[1]:], return_format="parsed")[0]
         return code_for(parsed["language"]), parsed["transcription"].strip()

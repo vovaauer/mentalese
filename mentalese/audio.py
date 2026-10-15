@@ -1,6 +1,8 @@
 """PipeWire plumbing: a virtual "Mentalese Mic" for Discord, plus raw PCM in/out via parec/pacat."""
 
+import queue
 import subprocess
+import threading
 
 import numpy as np
 
@@ -51,7 +53,10 @@ class MicReader:
 
 
 class Player:
-    """Streams mono float32 audio to a PipeWire sink at a fixed sample rate."""
+    """Streams mono float32 audio to a PipeWire sink at a fixed sample rate.
+
+    play() never blocks: pacat only drains in real time, so writing directly would stall the
+    caller for the whole length of the audio. A writer thread feeds it instead."""
 
     def __init__(self, sr: int, device: str | None = None):
         cmd = ["pacat", "--playback", f"--rate={sr}", "--channels=1", "--format=float32le",
@@ -59,12 +64,21 @@ class Player:
         if device:
             cmd.append(f"--device={device}")
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        self.queue: queue.Queue[bytes | None] = queue.Queue()
+        self.writer = threading.Thread(target=self._write, daemon=True)
+        self.writer.start()
+
+    def _write(self):
+        while (data := self.queue.get()) is not None:
+            self.proc.stdin.write(data)
+            self.proc.stdin.flush()
+        self.proc.stdin.close()
 
     def play(self, audio: np.ndarray):
-        self.proc.stdin.write(audio.astype(np.float32).tobytes())
-        self.proc.stdin.flush()
+        self.queue.put(audio.astype(np.float32).tobytes())
 
     def close(self):
         """Lets queued audio finish playing, then exits."""
-        self.proc.stdin.close()
+        self.queue.put(None)
+        self.writer.join(timeout=120)
         self.proc.wait(timeout=60)
