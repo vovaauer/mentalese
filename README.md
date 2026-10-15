@@ -6,7 +6,7 @@ Speak one language; people on Discord hear another, in your own voice. Fully loc
 mic → Silero VAD → Qwen3-ASR-0.6B → Hy-MT2-1.8B (llama.cpp) → Qwen3-TTS-0.6B-Base (faster-qwen3-tts) → Mentalese-Mic → Discord
 ```
 
-About 0.85 s from the end of your sentence to the first translated sound. Uses about 5 GB of VRAM.
+About 0.85 s from the end of your sentence to the first translated sound. Uses about 6.5 GB of VRAM.
 
 ## Use
 
