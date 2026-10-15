@@ -1,6 +1,8 @@
 """Translation with Tencent Hy-MT2-7B, served by a local llama.cpp server."""
 
 import atexit
+import ctypes
+import signal
 import socket
 import subprocess
 import time
@@ -32,6 +34,11 @@ EN_STYLE_TEMPLATE = (
 DEFAULT_STYLE = "casual and friendly, like friends chatting on Discord while gaming"
 
 
+def _die_with_parent():
+    """Linux: SIGTERM the server when mentalese exits, even on a crash or a closed terminal."""
+    ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+
+
 class Translator:
     def __init__(self, style: str | None = DEFAULT_STYLE):
         self.style = style  # None or "" = plain translation
@@ -42,7 +49,7 @@ class Translator:
         self.proc = subprocess.Popen(
             [str(SERVER_BIN), "-m", str(MODEL), "--port", str(port), "--host", "127.0.0.1",
              "-ngl", "99", "-c", "2048", "-np", "1", "--no-webui"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=_die_with_parent,
         )
         atexit.register(self.close)
         deadline = time.time() + 60
