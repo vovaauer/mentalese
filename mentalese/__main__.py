@@ -9,6 +9,7 @@
 import argparse
 import collections
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -30,6 +31,7 @@ SR = 16000
 FRAME = 512  # 32 ms, what Silero VAD expects at 16 kHz
 COLORS = ["\033[96m", "\033[93m", "\033[95m", "\033[92m", "\033[94m", "\033[91m"]  # one per person
 DIM, RESET = "\033[2m", "\033[0m"
+EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200D]")  # the voice can't say these
 
 READ_ALOUD = (
     "Hey, it's me. I'm recording this so my voice can speak other languages. "
@@ -185,7 +187,7 @@ def cmd_run(args):
             out = text if src == to else mt.translate(text, src, to)
             t_mt = time.perf_counter()
             t_tts = None
-            for chunk, _ in tts.stream(out, to):
+            for chunk, _ in tts.stream(EMOJI.sub("", out).strip() or out, to):
                 t_tts = t_tts or time.perf_counter()
                 player.play(chunk)
                 if monitor:
@@ -211,7 +213,7 @@ def cmd_say(args):
     out = mt.translate(text, None, args.to) if args.to != "en" else text
     print(f"[{args.to}] {out}")
     player = audio.Player(24000)
-    for chunk, _ in tts.stream(out, args.to):
+    for chunk, _ in tts.stream(EMOJI.sub("", out).strip() or out, args.to):
         player.play(chunk)
     player.close()
     mt.close()

@@ -12,7 +12,9 @@ from .langs import LANGS
 
 ROOT = Path(__file__).resolve().parent.parent
 SERVER_BIN = ROOT / "vendor/llama.cpp/build/bin/llama-server"
-MODEL = ROOT / "models/Hy-MT2-1.8B-Q8_0.gguf"
+# 7B over 1.8B: the 1.8B ignores tone (formal "вы" 15/18 even when asked for casual) and often
+# answers filler sounds by reciting the style instruction. ~+100 ms per sentence.
+MODEL = ROOT / "models/Hy-MT2-7B-Q4_K_M.gguf"
 
 # Hy-MT2 model card: one template for anything involving Chinese, one for the rest,
 # each in a plain and a "style" variant (the style is any free-text description of tone).
@@ -63,6 +65,20 @@ class Translator:
         else:
             template = ZH_TEMPLATE if zh else EN_TEMPLATE
         prompt = template.format(target=zh_name if zh else en_name, style=self.style, text=text)
+        out = self._complete(prompt, text)
+        if self.style and self._leaked(out, text):
+            # the model recited the style instruction instead of translating: redo it plain
+            plain = ZH_TEMPLATE if zh else EN_TEMPLATE
+            out = self._complete(plain.format(target=zh_name if zh else en_name, text=text), text)
+        return out
+
+    def _leaked(self, out: str, text: str) -> bool:
+        if any(b in out and b not in text for b in "[]【】"):
+            return True
+        style_words = {w for w in self.style.lower().split() if len(w) > 3}
+        return len(style_words & set(out.lower().replace(",", " ").split())) >= len(style_words) / 2
+
+    def _complete(self, prompt: str, text: str) -> str:
         r = requests.post(f"{self.url}/v1/chat/completions", json={
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7, "top_p": 0.6, "top_k": 20, "repeat_penalty": 1.05,
@@ -70,7 +86,7 @@ class Translator:
         }, timeout=30)
         r.raise_for_status()
         out = r.json()["choices"][0]["message"]["content"].strip()
-        # With a style, the 1.8B model sometimes echoes the instruction first ("Note: the style
+        # With a style, the model can echo the instruction first ("Note: the style
         # must...\n\n<translation>"). Speech has no line breaks, so the last paragraph is the answer.
         if "\n" in out and "\n" not in text:
             out = [line for line in out.split("\n") if line.strip()][-1].strip()
