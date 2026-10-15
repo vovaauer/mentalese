@@ -17,7 +17,7 @@ def ensure_virtual_mic():
     names = _pactl("list", "short", "sinks") + _pactl("list", "short", "sources")
     if SINK not in names:
         _pactl("load-module", "module-null-sink", f"sink_name={SINK}", "rate=48000", "channels=1",
-               "sink_properties=device.description=Mentalese-Output")
+               "sink_properties=device.description=Mentalese-Internal-DONT-SELECT")
     if f"\t{MIC}\t" not in names:
         _pactl("load-module", "module-remap-source", f"master={SINK}.monitor", f"source_name={MIC}",
                "source_properties=device.description=Mentalese-Mic")

@@ -16,7 +16,8 @@ uv run mentalese say --to ru "hello"    # hear your clone in your headphones
 uv run mentalese run --to ru            # go live; type zh / en / ru... + Enter to switch, m = mute, q = quit
 ```
 
-In Discord → Voice & Video: set **Input Device** to **Mentalese-Mic**, and turn off Noise Suppression,
+In Discord → Voice & Video: set **Input Device** to **Mentalese-Mic** (leave Output on your headphones; never pick
+"Mentalese-Internal", it loops other people back into your mic), and turn off Noise Suppression,
 Echo Cancellation and Automatic Gain Control.
 
 Output languages: en ru zh ja ko de fr es pt it (what Qwen3-TTS can speak). Input: any of ~30 languages, auto-detected.
