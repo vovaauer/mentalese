@@ -14,4 +14,5 @@ cd vendor/Vencord
 PNPM="npx -y pnpm@$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
 $PNPM install --frozen-lockfile
 $PNPM build
+echo '{}' > dist/package.json  # Vesktop rejects a Vencord folder without one
 echo "built: $(pwd)/dist"
