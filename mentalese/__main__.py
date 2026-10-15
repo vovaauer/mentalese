@@ -19,6 +19,7 @@ import numpy as np
 import soundfile as sf
 
 from . import audio
+from .incoming import Incoming
 from .langs import LANGS
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +27,8 @@ VOICE_WAV = ROOT / "voices/me.wav"
 VOICE_TXT = ROOT / "voices/me.txt"
 SR = 16000
 FRAME = 512  # 32 ms, what Silero VAD expects at 16 kHz
+COLORS = ["\033[96m", "\033[93m", "\033[95m", "\033[92m", "\033[94m", "\033[91m"]  # one per person
+DIM, RESET = "\033[2m", "\033[0m"
 
 READ_ALOUD = (
     "Hey, it's me. I'm recording this so my voice can speak other languages. "
@@ -113,7 +116,7 @@ def cmd_run(args):
     player = audio.Player(24000, device=audio.SINK)
     monitor = audio.Player(24000) if args.monitor else None
 
-    utterances: queue.Queue = queue.Queue()
+    utterances: queue.Queue = queue.Queue()  # ("out"|"in", stream, t_end, audio)
 
     def listen():
         mic = audio.MicReader(SR, FRAME, device=args.input)
@@ -121,7 +124,19 @@ def cmd_run(args):
         while True:
             utt = seg.feed(mic.read())
             if utt is not None and not state["muted"]:
-                utterances.put((time.perf_counter(), utt))
+                utterances.put(("out", 0, time.perf_counter(), utt))
+
+    # each call participant gets their own VAD, so people talking over each other stay separate
+    segmenters: dict[int, Segmenter] = {}
+
+    def on_frame(num, frame):
+        seg = segmenters.get(num) or segmenters.setdefault(num, Segmenter(args.silence_ms))
+        utt = seg.feed(frame)
+        if utt is not None:
+            utterances.put(("in", num, time.perf_counter(), utt))
+
+    Incoming(on_open=lambda num, user: segmenters.setdefault(num, Segmenter(args.silence_ms)),
+             on_frame=on_frame, on_close=lambda num: segmenters.pop(num, None), frame=FRAME)
 
     def commands():
         for line in sys.stdin:
@@ -141,19 +156,30 @@ def cmd_run(args):
     threading.Thread(target=commands, daemon=True).start()
 
     print(f"\nReady. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.")
-    print(f"Translating into {LANGS[state['to']][0]}. Type a code + Enter to switch "
-          f"({' '.join(LANGS)}), 'm' to mute/unmute, 'q' to quit.\n> ", end="", flush=True)
+    print(f"You speak → {LANGS[state['to']][0]}. Others → subtitles in {LANGS[args.me][0]}. "
+          f"Type a code + Enter to switch ({' '.join(LANGS)}), 'm' to mute/unmute, 'q' to quit.\n> ",
+          end="", flush=True)
 
+    ms = lambda a, b: f"{1000 * (b - a):.0f}"
     # GPU work stays on the main thread, where the TTS CUDA graphs were captured
     try:
         while (item := utterances.get()) is not None:
-            t_end, utt = item
+            kind, num, t_end, utt = item
             if len(utt) < SR * 0.3:
                 continue
             src, text = asr.transcribe(utt)
             t_asr = time.perf_counter()
             if not text:
                 continue
+
+            if kind == "in":
+                if src == args.me:
+                    continue  # you understand it already
+                sub = mt.translate(text, src, args.me)
+                color = COLORS[num % len(COLORS)]
+                print(f"\r{color}▌ {sub}{RESET}  {DIM}({text}){RESET}\n> ", end="", flush=True)
+                continue
+
             to = state["to"]
             out = text if src == to else mt.translate(text, src, to)
             t_mt = time.perf_counter()
@@ -164,11 +190,9 @@ def cmd_run(args):
                 if monitor:
                     monitor.play(chunk)
             t_tts = t_tts or time.perf_counter()
-            ms = lambda a, b: f"{1000 * (b - a):.0f}"
-            print(f"\n[{src or '?'}] {text}\n[{to}] {out}\n"
-                  f"   asr {ms(t_end, t_asr)} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)} ms"
-                  f" = they hear you {ms(t_end, t_tts)} ms after the pause (pause = {args.silence_ms} ms)\n> ",
-                  end="", flush=True)
+            print(f"\r{DIM}you: {text}\n  → {out}   "
+                  f"[{ms(t_end, t_tts)} ms: asr {ms(t_end, t_asr)} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
+                  f"{RESET}\n> ", end="", flush=True)
     except KeyboardInterrupt:
         pass
     mt.close()
@@ -198,6 +222,7 @@ def main():
     sub.add_parser("record", help="record your voice sample")
     r = sub.add_parser("run", help="start translating")
     r.add_argument("--to", default="ru", choices=list(LANGS), help="language Discord hears")
+    r.add_argument("--me", default="en", choices=list(LANGS), help="language for subtitles of what others say")
     r.add_argument("--silence-ms", type=int, default=400,
                    help="how long a pause counts as the end of a sentence (lower = faster, may cut you off)")
     r.add_argument("--monitor", action="store_true", help="also play the translation in your headphones")
