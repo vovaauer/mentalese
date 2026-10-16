@@ -13,7 +13,8 @@ About 0.85 s from the end of your sentence to the first translated sound. Uses a
 ```bash
 uv run mentalese record                 # once: record your voice sample
 uv run mentalese say --to ru "hello"    # hear your clone in your headphones
-uv run mentalese run --to ru            # go live; type zh / en / ru... + Enter to switch, m = mute, q = quit
+uv run mentalese run --to ru            # go live; type a line + Enter to say it in your voice,
+                                        # /zh /en /ru... to switch, /mute, /quit
 ```
 
 In Discord → Voice & Video: set **Input Device** to **Mentalese-Mic** (leave Output on your headphones; never pick

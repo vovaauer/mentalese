@@ -1,7 +1,7 @@
 """mentalese: speak one language, Discord hears another, in your own voice.
 
   uv run mentalese record        record your voice sample (once)
-  uv run mentalese run --to ru   start translating; type a language code + Enter to switch
+  uv run mentalese run --to ru   start translating; type to speak, /zh etc. to switch, /quit to stop
   uv run mentalese say --to zh "text"   hear your clone say something (translated) in your headphones
   uv run mentalese remove-mic    remove the virtual mic from PipeWire
 """
@@ -145,15 +145,24 @@ def cmd_run(args):
 
     def commands():
         for line in sys.stdin:
-            cmd = line.strip().lower()
-            if cmd in LANGS:
-                state["to"] = cmd
-                print(f"now translating into {LANGS[cmd][0]}")
-            elif cmd == "m":
+            line = line.strip()
+            cmd = line.lower()
+            if not line:
+                pass
+            elif not cmd.startswith("/"):
+                # typed text: spoken in your voice, in the target language, like a spoken sentence
+                utterances.put(("typed", 0, time.perf_counter(), line))
+                continue  # the result line prints the next prompt
+            elif cmd[1:] in LANGS:
+                state["to"] = cmd[1:]
+                print(f"now translating into {LANGS[cmd[1:]][0]}")
+            elif cmd in ("/m", "/mute"):
                 state["muted"] = not state["muted"]
-                print("muted" if state["muted"] else "unmuted")
-            elif cmd in ("q", "quit", "exit"):
+                print("mic muted (typing still works)" if state["muted"] else "mic unmuted")
+            elif cmd in ("/q", "/quit", "/exit"):
                 break
+            else:
+                print(f"commands: /{' /'.join(LANGS)}  /mute  /quit — anything else gets spoken")
             print("> ", end="", flush=True)
         utterances.put(None)
 
@@ -161,8 +170,8 @@ def cmd_run(args):
     threading.Thread(target=commands, daemon=True).start()
 
     print(f"\nReady. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.")
-    print(f"You speak → {LANGS[state['to']][0]}. Others → subtitles in {LANGS[args.me][0]}. "
-          f"Type a code + Enter to switch ({' '.join(LANGS)}), 'm' to mute/unmute, 'q' to quit.\n> ",
+    print(f"You speak → {LANGS[state['to']][0]}. Others → subtitles in {LANGS[args.me][0]}.\n"
+          f"Type anything + Enter to say it in your voice. Commands: /{' /'.join(LANGS)}  /mute  /quit\n> ",
           end="", flush=True)
 
     ms = lambda a, b: f"{1000 * (b - a):.0f}"
@@ -170,10 +179,13 @@ def cmd_run(args):
     try:
         while (item := utterances.get()) is not None:
             kind, num, t_end, utt = item
-            if len(utt) < SR * 0.3:
-                continue
             t_start = time.perf_counter()  # later than t_end if earlier sentences were still being processed
-            src, text = asr.transcribe(utt)
+            if kind == "typed":
+                src, text = None, utt
+            else:
+                if len(utt) < SR * 0.3:
+                    continue
+                src, text = asr.transcribe(utt)
             t_asr = time.perf_counter()
             if not text:
                 continue
@@ -198,9 +210,10 @@ def cmd_run(args):
                     monitor.play(chunk)
             t_tts = t_tts or time.perf_counter()
             torch.cuda.empty_cache()  # keeps VRAM ~0.8 GB lower; no measurable latency cost
+            wait = f"wait {ms(t_end, t_start)} + " if t_start - t_end > 0.05 else ""
+            asr_part = "typed" if kind == "typed" else f"asr {ms(t_start, t_asr)}"
             print(f"\r{DIM}you: {text}\n  → {out}   "
-                  f"[{ms(t_end, t_tts)} ms: {'wait ' + ms(t_end, t_start) + ' + ' if t_start - t_end > 0.05 else ''}"
-                  f"asr {ms(t_start, t_asr)} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
+                  f"[{ms(t_end, t_tts)} ms: {wait}{asr_part} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
                   f"{RESET}\n> ", end="", flush=True)
     except KeyboardInterrupt:
         pass
