@@ -15,6 +15,9 @@ def detect(text: str, fallback: str) -> str:
         _detector = LanguageDetectorBuilder.from_languages(
             *(getattr(Language, name.upper()) for name, _ in LANGS.values())
         ).with_preloaded_language_models().build()
+    # one or two Latin-alphabet words (names, "gg", "nice") are a coin flip ("yaron" -> Spanish 0.59)
+    if len(text.split()) <= 2 and all(c.isascii() for c in text):
+        return fallback
     lang = _detector.detect_language_of(text)
     if lang is None or _detector.compute_language_confidence(text, lang) < 0.5:
         return fallback

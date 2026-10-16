@@ -32,7 +32,9 @@ EN_STYLE_TEMPLATE = (
     "Note that the translation style must strictly conform to [{style}]:\n\n{text}"
 )
 
-DEFAULT_STYLE = "casual and friendly, like friends chatting on Discord while gaming"
+# "add nothing" matters: without it, short lines get embellished ("bye" -> "ну пока, чуваки! 😎",
+# a bare name -> "Yaron? Oh, hey! That's him!"); 13/24 short inputs before, 0/24 after, still informal.
+DEFAULT_STYLE = "casual and informal, like talking to a close friend; translate only what is said, add nothing"
 
 
 def _die_with_parent():
