@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from . import audio
+from . import audio, langid
 from .incoming import Incoming
 from .langs import LANGS
 from .mt import DEFAULT_STYLE
@@ -181,7 +181,7 @@ def cmd_run(args):
             kind, num, t_end, utt = item
             t_start = time.perf_counter()  # later than t_end if earlier sentences were still being processed
             if kind == "typed":
-                src, text = None, utt
+                src, text = langid.detect(utt, fallback=args.me), utt
             else:
                 if len(utt) < SR * 0.3:
                     continue

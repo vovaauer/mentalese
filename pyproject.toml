@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "faster-qwen3-tts>=0.5.4",
     "librosa>=1.0.0",
+    "lingua-language-detector>=2.2.0",
     "numpy>=2.5.4",
     "requests>=2.34.2",
     "silero-vad>=6.2.3",
