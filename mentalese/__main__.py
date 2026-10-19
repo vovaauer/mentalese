@@ -20,6 +20,7 @@ import numpy as np
 import soundfile as sf
 
 from . import audio, langid
+from .appaudio import AppCapture
 from .incoming import Incoming
 from .langs import LANGS
 from .mt import DEFAULT_STYLE
@@ -139,6 +140,8 @@ def cmd_run(args):
         if utt is not None:
             utterances.put(("in", num, time.perf_counter(), utt))
 
+    if args.subtitles_from:
+        AppCapture(args.subtitles_from, on_frame, frame=FRAME)
     if not args.no_subtitles:
         Incoming(on_open=lambda num, user: segmenters.setdefault(num, Segmenter(args.their_silence_ms)),
                  on_frame=on_frame, on_close=lambda num: segmenters.pop(num, None), frame=FRAME)
@@ -252,6 +255,8 @@ def main():
     r.add_argument("--their-silence-ms", type=int, default=700,
                    help="same for other people; longer so subtitles get whole sentences, not fragments")
     r.add_argument("--no-subtitles", action="store_true", help="don't listen to the Vesktop plugin")
+    r.add_argument("--subtitles-from", metavar="APP",
+                   help="also subtitle an app's audio, e.g. Telegram (best for 1:1 calls)")
     r.add_argument("--monitor", action="store_true", help="also play the translation in your headphones")
     r.add_argument("--input", help=argparse.SUPPRESS)  # read from another PipeWire source (testing)
     s = sub.add_parser("say", help="hear your cloned voice say something (translated from English)")
