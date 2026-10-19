@@ -44,15 +44,27 @@ def _die_with_parent():
 
 
 def _kill_leftovers():
-    """Kill translator servers orphaned by an earlier mentalese run (only ours, matched by binary path)."""
+    """Kill translator servers orphaned by an earlier mentalese run: ours (matched by binary
+    path) whose parent is no longer a mentalese process. A second mentalese running at the
+    same time must not kill the first one's translator."""
+    def cmdline(pid) -> list[str]:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().decode(errors="replace").split("\0")
+
     for pid in filter(str.isdigit, os.listdir("/proc")):
         try:
-            with open(f"/proc/{pid}/cmdline", "rb") as f:
-                argv0 = f.read().split(b"\0")[0].decode()
-        except OSError:
+            if cmdline(pid)[0] != str(SERVER_BIN):
+                continue
+            with open(f"/proc/{pid}/stat") as f:
+                ppid = f.read().rsplit(")", 1)[1].split()[1]
+            try:
+                parent_alive = any("mentalese" in a for a in cmdline(ppid))
+            except OSError:
+                parent_alive = False
+            if not parent_alive:
+                os.kill(int(pid), signal.SIGKILL)
+        except (OSError, IndexError):
             continue
-        if argv0 == str(SERVER_BIN):
-            os.kill(int(pid), signal.SIGKILL)
 
 
 class Translator:

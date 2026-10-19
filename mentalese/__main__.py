@@ -179,13 +179,17 @@ def cmd_run(args):
             elif cmd[1:] in LANGS:
                 state["to"] = cmd[1:]
                 print(f"now translating into {LANGS[cmd[1:]][0]}")
+            elif cmd == "/accent":
+                tts.keep_accent = not tts.keep_accent
+                print("voice: like your sample, accent and all" if tts.keep_accent
+                      else "voice: native pronunciation (a bit less like you)")
             elif cmd in ("/m", "/mute"):
                 state["muted"] = not state["muted"]
                 print("mic muted (typing still works)" if state["muted"] else "mic unmuted")
             elif cmd in ("/q", "/quit", "/exit"):
                 break
             else:
-                print(f"commands: /{' /'.join(LANGS)}  /mute  /quit — anything else gets spoken")
+                print(f"commands: /{' /'.join(LANGS)}  /accent  /mute  /quit — anything else gets spoken")
             print("> ", end="", flush=True)
         utterances.put(None)
 
@@ -198,7 +202,7 @@ def cmd_run(args):
         print(f"\nReady. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.")
     others = "" if args.practice else f" Others → subtitles in {LANGS[args.me][0]}."
     print(f"You speak → {LANGS[state['to']][0]}.{others}\n"
-          f"Type anything + Enter to say it in your voice. Commands: /{' /'.join(LANGS)}  /mute  /quit\n> ",
+          f"Type anything + Enter to say it in your voice. Commands: /{' /'.join(LANGS)}  /accent  /mute  /quit\n> ",
           end="", flush=True)
 
     ms = lambda a, b: f"{1000 * (b - a):.0f}"
@@ -241,8 +245,9 @@ def cmd_run(args):
             torch.cuda.empty_cache()  # keeps VRAM ~0.8 GB lower; no measurable latency cost
             wait = f"wait {ms(t_end, t_start)} + " if t_start - t_end > 0.05 else ""
             asr_part = "typed" if kind == "typed" else f"asr {ms(t_start, t_asr)}"
+            mode = "native" if tts.uses_fingerprint(to) else "like sample"
             print(f"\r{DIM}you: {text}\n  → {out}   "
-                  f"[{ms(t_end, t_tts)} ms: {wait}{asr_part} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)}]"
+                  f"[{ms(t_end, t_tts)} ms: {wait}{asr_part} + mt {ms(t_asr, t_mt)} + voice {ms(t_mt, t_tts)} ({mode})]"
                   f"{RESET}\n> ", end="", flush=True)
     except KeyboardInterrupt:
         pass

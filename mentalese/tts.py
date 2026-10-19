@@ -42,12 +42,15 @@ class TTS:
         cjk = sum(1 for c in text if "\u3000" <= c <= "\u9fff" or "\uac00" <= c <= "\ud7af")
         return int(1.6 * (len(text) - cjk) + 4.8 * cjk) + 24
 
+    def uses_fingerprint(self, lang: str) -> bool:
+        return not self.keep_accent and self.voice_lang is not None and lang != self.voice_lang
+
     def stream(self, text: str, lang: str) -> Iterator[tuple[np.ndarray, int]]:
         # Default (ICL) mode continues the reference recording, so it also carries its
         # pronunciation: an English sample speaking Russian came out with a heavy accent (ASR
         # error 26% vs 0.7%). The x-vector alone keeps the voice without the accent; it's a bit
         # less similar (0.65 vs 0.77) but sounds native. Same-language output keeps ICL (0.96).
-        xvec = not self.keep_accent and self.voice_lang is not None and lang != self.voice_lang
+        xvec = self.uses_fingerprint(lang)
         for chunk, sr, _ in self.model.generate_voice_clone_streaming(
             text=text, language=LANGS[lang][0], chunk_size=self.chunk_size,
             max_new_tokens=self.max_frames(text), xvec_only=xvec, **self.ref,

@@ -1,6 +1,6 @@
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 loading models...
-Loading weights:   0%|          | 0/611 [00:00<?, ?it/s]Loading weights:  74%|███████▍  | 454/611 [00:00<00:00, 4528.89it/s]Loading weights: 100%|██████████| 611/611 [00:00<00:00, 4488.88it/s]
+Loading weights:   0%|          | 0/611 [00:00<?, ?it/s]Loading weights:  77%|███████▋  | 470/611 [00:00<00:00, 4698.72it/s]Loading weights: 100%|██████████| 611/611 [00:00<00:00, 4654.76it/s]
 /bin/sh: line 1: sox: command not found
 SoX could not be found!
 
@@ -12,26 +12,86 @@ SoX could not be found!
     
 [transformers] `torch_dtype` is deprecated! Use `dtype` instead!
 
-Loading weights:   0%|          | 0/478 [00:00<?, ?it/s]Loading weights:  99%|█████████▉| 473/478 [00:00<00:00, 3144.92it/s]Loading weights: 100%|██████████| 478/478 [00:00<00:00, 3152.49it/s]
-Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 2864.47it/s]
-Loading weights:   0%|          | 0/496 [00:00<?, ?it/s]Loading weights: 100%|██████████| 496/496 [00:00<00:00, 8604.09it/s]
-Could not infer sample rate from base model; defaulting to 24000 Hz.
-Warming up predictor (3 runs)...
-Capturing CUDA graph for predictor...
-CUDA graph captured!
-Warming up talker graph (3 runs)...
-Capturing CUDA graph for talker decode...
-Talker CUDA graph captured!
-
-Ready. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.
-You speak → Russian. Others → subtitles in English.
-Type anything + Enter to say it in your voice. Commands: /en /ru /zh /ja /ko /de /fr /es /pt /it  /mute  /quit
-> [2myou: Hey, are you guys ready? Let's go mine some diamonds before the server restarts.
-  → Эй, вы уже готовы? Пошли добываем диаманты, пока сервер снова не перезагрузился.   [570 ms: asr 204 + mt 277 + voice 89][0m
-> [2myou: A.
-  → А.   [185 ms: asr 63 + mt 31 + voice 90][0m
-> [2myou: Вы готовы? Давайте заберем немного алмазов до того, как сервер снова будет запущен.
-  → Вы готовы? Давайте заберем немного алмазов до того, как сервер снова будет запущен.   [348 ms: asr 260 + mt 0 + voice 88][0m
-> [2myou: Hey, are you guys ready? Let's go mine some diamonds before the server restarts.
-  → Эй, вы уже готовы? Пошли добываем алмазы, пока сервер снова не перезагрузился.   [581 ms: asr 187 + mt 297 + voice 96][0m
-> write() failed: Broken pipe
+Loading weights:   0%|          | 0/478 [00:00<?, ?it/s]Loading weights:  99%|█████████▉| 474/478 [00:00<00:00, 3304.58it/s]Loading weights: 100%|██████████| 478/478 [00:00<00:00, 3312.14it/s]
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 3452.10it/s]
+Loading weights:   0%|          | 0/496 [00:00<?, ?it/s]Loading weights:  48%|████▊     | 236/496 [00:00<00:00, 7063.99it/s]
+Traceback (most recent call last):
+  File "/home/vova/Documents/mentalese/.venv/bin/mentalese", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/vova/Documents/mentalese/mentalese/__main__.py", line 314, in main
+    commands[args.cmd](args)
+    ~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/vova/Documents/mentalese/mentalese/__main__.py", line 130, in cmd_run
+    asr, mt, tts = ASR(), Translator(style=args.style), TTS()
+                                                        ~~~^^
+  File "/home/vova/Documents/mentalese/mentalese/tts.py", line 17, in __init__
+    self.model = FasterQwen3TTS.from_pretrained(MODEL_ID, max_seq_len=1024)
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/faster_qwen3_tts/model.py", line 198, in from_pretrained
+    base_model = Qwen3TTSModel.from_pretrained(
+        model_name,
+    ...<2 lines>...
+        attn_implementation=attn_implementation,
+    )
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/qwen_tts/inference/qwen3_tts_model.py", line 112, in from_pretrained
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path, **kwargs)
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/models/auto/auto_factory.py", line 402, in from_pretrained
+    return model_class.from_pretrained(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/qwen_tts/core/models/modeling_qwen3_tts.py", line 1924, in from_pretrained
+    speech_tokenizer = Qwen3TTSTokenizer.from_pretrained(
+        speech_tokenizer_dir,
+        *model_args,
+        **kwargs,
+    )
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/qwen_tts/inference/qwen3_tts_tokenizer.py", line 88, in from_pretrained
+    inst.model = AutoModel.from_pretrained(pretrained_model_name_or_path, **kwargs)
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/models/auto/auto_factory.py", line 402, in from_pretrained
+    return model_class.from_pretrained(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/modeling_utils.py", line 4348, in from_pretrained
+    loading_info, disk_offload_index = cls._load_pretrained_model(model, state_dict, checkpoint_files, load_config)
+                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/modeling_utils.py", line 4482, in _load_pretrained_model
+    loading_info, disk_offload_index = convert_and_load_state_dict_in_model(
+                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=model,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        disk_offload_index=disk_offload_index,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/core_model_loading.py", line 1714, in convert_and_load_state_dict_in_model
+    realized_value = mapping.convert(
+        first_param_name,
+    ...<3 lines>...
+        loading_info=loading_info,
+    )
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/core_model_loading.py", line 994, in convert
+    collected_tensors = self.materialize_tensors()
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/core_model_loading.py", line 956, in materialize_tensors
+    tensors = [future.result() for future in tensors if future.result() is not None]
+                                                        ~~~~~~~~~~~~~^^
+  File "/home/vova/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/concurrent/futures/_base.py", line 456, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/home/vova/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/home/vova/.local/share/uv/python/cpython-3.13.13-linux-x86_64-gnu/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/core_model_loading.py", line 1243, in _job
+    return _materialize_copy(tensor, device, dtype)
+  File "/home/vova/Documents/mentalese/.venv/lib/python3.13/site-packages/transformers/core_model_loading.py", line 1221, in _materialize_copy
+    tensor = tensor.to(device=device, dtype=dtype)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 MiB. GPU 0 has a total capacity of 15.56 GiB of which 86.56 MiB is free. Process 2524 has 332.82 MiB memory in use. Process 6001 has 175.73 MiB memory in use. Process 7040 has 315.16 MiB memory in use. Process 8827 has 117.23 MiB memory in use. Process 143524 has 203.48 MiB memory in use. Process 586427 has 4.14 GiB memory in use. Including non-PyTorch memory, this process has 3.82 GiB memory in use. Process 588693 has 4.73 GiB memory in use. Of the allocated memory 3.33 GiB is allocated by PyTorch, and 225.37 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
