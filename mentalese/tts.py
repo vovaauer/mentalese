@@ -17,15 +17,22 @@ class TTS:
         self.model = FasterQwen3TTS.from_pretrained(MODEL_ID, max_seq_len=1024)
         self.chunk_size = chunk_size  # codec steps per yielded chunk; 1 step = 80 ms of audio
         self.ref = None
+        self.voice_lang = None
+        self.keep_accent = False
 
-    def set_voice(self, ref_audio: str, ref_text: str):
-        """Reference recording for cloning; the model caches the voice after the first call."""
+    def set_voice(self, ref_audio: str, ref_text: str, lang: str | None = None, keep_accent: bool = False):
+        """Reference recording for cloning; the model caches the voice after the first call.
+        `lang` is the sample's language: other languages are spoken from the voice fingerprint
+        only, unless keep_accent."""
         self.ref = dict(ref_audio=ref_audio, ref_text=ref_text)
+        self.voice_lang, self.keep_accent = lang, keep_accent
 
     def warmup(self):
         self.model.warmup(prefill_len=100)
-        for _ in self.stream("Hello there.", "en"):
-            pass
+        # one same-language and one other-language sentence, so both clone modes are ready
+        for text, lang in [("Hello there.", "en"), ("Привет.", "ru")]:
+            for _ in self.stream(text, lang):
+                pass
 
     @staticmethod
     def max_frames(text: str) -> int:
@@ -36,9 +43,14 @@ class TTS:
         return int(1.6 * (len(text) - cjk) + 4.8 * cjk) + 24
 
     def stream(self, text: str, lang: str) -> Iterator[tuple[np.ndarray, int]]:
+        # Default (ICL) mode continues the reference recording, so it also carries its
+        # pronunciation: an English sample speaking Russian came out with a heavy accent (ASR
+        # error 26% vs 0.7%). The x-vector alone keeps the voice without the accent; it's a bit
+        # less similar (0.65 vs 0.77) but sounds native. Same-language output keeps ICL (0.96).
+        xvec = not self.keep_accent and self.voice_lang is not None and lang != self.voice_lang
         for chunk, sr, _ in self.model.generate_voice_clone_streaming(
             text=text, language=LANGS[lang][0], chunk_size=self.chunk_size,
-            max_new_tokens=self.max_frames(text), **self.ref,
+            max_new_tokens=self.max_frames(text), xvec_only=xvec, **self.ref,
         ):
             yield np.asarray(chunk, dtype=np.float32).reshape(-1), sr
 

@@ -128,7 +128,9 @@ def cmd_run(args):
     from .tts import TTS
 
     asr, mt, tts = ASR(), Translator(style=args.style), TTS()
-    tts.set_voice(str(voice_wav), voice_txt.read_text())
+    voice_text = voice_txt.read_text()
+    tts.set_voice(str(voice_wav), voice_text, lang=langid.detect(voice_text, fallback="en"),
+                  keep_accent=args.keep_accent)
     # warm up every stage so the first real sentence isn't slow
     asr.transcribe(np.zeros(SR, np.float32))
     mt.translate("hello", "en", "ru")
@@ -253,7 +255,9 @@ def cmd_say(args):
     from .tts import TTS
 
     mt, tts = Translator(style=args.style), TTS()
-    tts.set_voice(str(voice_wav), voice_txt.read_text())
+    voice_text = voice_txt.read_text()
+    tts.set_voice(str(voice_wav), voice_text, lang=langid.detect(voice_text, fallback="en"),
+                  keep_accent=args.keep_accent)
     text = " ".join(args.text)
     out = mt.translate(text, None, args.to) if args.to != "en" else text
     print(f"[{args.to}] {out}")
@@ -272,6 +276,8 @@ def main():
     r = sub.add_parser("run", help="start translating")
     r.add_argument("--to", default="ru", choices=list(LANGS), help="language Discord hears")
     r.add_argument("--voice", default="me", help="which recorded voice to speak with")
+    r.add_argument("--keep-accent", action="store_true",
+                   help="other languages keep your sample's accent (closer to your voice, less native)")
     r.add_argument("--practice", action="store_true",
                    help="hear yourself translated in your headphones; no Discord, no subtitles")
     r.add_argument("--style", default=DEFAULT_STYLE,
@@ -290,6 +296,7 @@ def main():
     s.add_argument("--to", default="ru", choices=list(LANGS))
     s.add_argument("--style", default=DEFAULT_STYLE)
     s.add_argument("--voice", default="me")
+    s.add_argument("--keep-accent", action="store_true")
     s.add_argument("text", nargs="+")
     sub.add_parser("voices", help="list recorded voices")
     sub.add_parser("remove-mic", help="remove the virtual mic")

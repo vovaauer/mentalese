@@ -1,0 +1,37 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+loading models...
+Loading weights:   0%|          | 0/611 [00:00<?, ?it/s]Loading weights:  74%|███████▍  | 454/611 [00:00<00:00, 4528.89it/s]Loading weights: 100%|██████████| 611/611 [00:00<00:00, 4488.88it/s]
+/bin/sh: line 1: sox: command not found
+SoX could not be found!
+
+    If you do not have SoX, proceed here:
+     - - - http://sox.sourceforge.net/ - - -
+
+    If you do (or think that you should) have SoX, double-check your
+    path variables.
+    
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading weights:   0%|          | 0/478 [00:00<?, ?it/s]Loading weights:  99%|█████████▉| 473/478 [00:00<00:00, 3144.92it/s]Loading weights: 100%|██████████| 478/478 [00:00<00:00, 3152.49it/s]
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 2864.47it/s]
+Loading weights:   0%|          | 0/496 [00:00<?, ?it/s]Loading weights: 100%|██████████| 496/496 [00:00<00:00, 8604.09it/s]
+Could not infer sample rate from base model; defaulting to 24000 Hz.
+Warming up predictor (3 runs)...
+Capturing CUDA graph for predictor...
+CUDA graph captured!
+Warming up talker graph (3 runs)...
+Capturing CUDA graph for talker decode...
+Talker CUDA graph captured!
+
+Ready. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.
+You speak → Russian. Others → subtitles in English.
+Type anything + Enter to say it in your voice. Commands: /en /ru /zh /ja /ko /de /fr /es /pt /it  /mute  /quit
+> [2myou: Hey, are you guys ready? Let's go mine some diamonds before the server restarts.
+  → Эй, вы уже готовы? Пошли добываем диаманты, пока сервер снова не перезагрузился.   [570 ms: asr 204 + mt 277 + voice 89][0m
+> [2myou: A.
+  → А.   [185 ms: asr 63 + mt 31 + voice 90][0m
+> [2myou: Вы готовы? Давайте заберем немного алмазов до того, как сервер снова будет запущен.
+  → Вы готовы? Давайте заберем немного алмазов до того, как сервер снова будет запущен.   [348 ms: asr 260 + mt 0 + voice 88][0m
+> [2myou: Hey, are you guys ready? Let's go mine some diamonds before the server restarts.
+  → Эй, вы уже готовы? Пошли добываем алмазы, пока сервер снова не перезагрузился.   [581 ms: asr 187 + mt 297 + voice 96][0m
+> write() failed: Broken pipe
