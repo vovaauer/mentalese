@@ -26,13 +26,25 @@ from .langs import LANGS
 from .mt import DEFAULT_STYLE
 
 ROOT = Path(__file__).resolve().parent.parent
-VOICE_WAV = ROOT / "voices/me.wav"
-VOICE_TXT = ROOT / "voices/me.txt"
+VOICES = ROOT / "voices"
 SR = 16000
 FRAME = 512  # 32 ms, what Silero VAD expects at 16 kHz
 COLORS = ["\033[96m", "\033[93m", "\033[95m", "\033[92m", "\033[94m", "\033[91m"]  # one per person
 DIM, RESET = "\033[2m", "\033[0m"
 EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200D]")  # the voice can't say these
+
+def voice_files(name: str) -> tuple[Path, Path]:
+    """A voice is a 15 s recording plus its transcript: voices/<name>.wav and .txt"""
+    return VOICES / f"{name}.wav", VOICES / f"{name}.txt"
+
+
+def require_voice(name: str) -> tuple[Path, Path]:
+    wav, txt = voice_files(name)
+    if not wav.exists():
+        hint = "" if name == "me" else f" --voice {name}"
+        sys.exit(f"No voice called '{name}' yet. Record it with:  uv run mentalese record{hint}")
+    return wav, txt
+
 
 READ_ALOUD = (
     "Hey, it's me. I'm recording this so my voice can speak other languages. "
@@ -44,8 +56,10 @@ READ_ALOUD = (
 def cmd_record(args):
     from .asr import ASR
 
-    VOICE_WAV.parent.mkdir(exist_ok=True)
-    print("Read this out loud, at your normal pace and volume:\n")
+    wav_path, txt_path = voice_files(args.voice)
+    VOICES.mkdir(exist_ok=True)
+    print(f"Recording voice '{args.voice}'. Read this out loud at a normal pace and volume,")
+    print("or just talk naturally for 15 seconds in any language:\n")
     print(f"  {READ_ALOUD}\n")
     input("Press Enter to start recording (it stops by itself after 15 seconds)...")
     print("recording...")
@@ -58,13 +72,13 @@ def cmd_record(args):
     if peak < 0.02:
         sys.exit("That was nearly silent. Check your default mic in your sound settings and try again.")
     wav = wav / peak * 0.9
-    sf.write(VOICE_WAV, wav, 24000)
+    sf.write(wav_path, wav, 24000)
     print("transcribing your sample...")
     import librosa
 
     lang, text = ASR().transcribe(librosa.resample(wav, orig_sr=24000, target_sr=SR))
-    VOICE_TXT.write_text(text)
-    print(f"saved {VOICE_WAV.relative_to(ROOT)} ({lang}): {text}")
+    txt_path.write_text(text)
+    print(f"saved {wav_path.relative_to(ROOT)} ({lang}): {text}")
 
 
 class Segmenter:
@@ -101,24 +115,26 @@ class Segmenter:
 def cmd_run(args):
     import torch
 
-    if not VOICE_WAV.exists():
-        sys.exit("No voice sample yet. Run:  uv run mentalese record")
-    state = {"to": args.to, "muted": False}
+    voice_wav, voice_txt = require_voice(args.voice)
+    if args.practice:  # hear yourself in your headphones only; no Discord, no subtitles
+        args.monitor, args.no_subtitles, args.subtitles_from = True, True, None
+    state = {"to": args.to, "muted": False, "playing_until": 0.0}
 
-    audio.ensure_virtual_mic()
+    if not args.practice:
+        audio.ensure_virtual_mic()
     print("loading models...")
     from .asr import ASR
     from .mt import Translator
     from .tts import TTS
 
     asr, mt, tts = ASR(), Translator(style=args.style), TTS()
-    tts.set_voice(str(VOICE_WAV), VOICE_TXT.read_text())
+    tts.set_voice(str(voice_wav), voice_txt.read_text())
     # warm up every stage so the first real sentence isn't slow
     asr.transcribe(np.zeros(SR, np.float32))
     mt.translate("hello", "en", "ru")
     tts.warmup()
     torch.cuda.empty_cache()  # hand back what loading and warmup used but no longer need
-    player = audio.Player(24000, device=audio.SINK)
+    player = None if args.practice else audio.Player(24000, device=audio.SINK)
     monitor = audio.Player(24000) if args.monitor else None
 
     utterances: queue.Queue = queue.Queue()  # ("out"|"in", stream, t_end, audio)
@@ -128,7 +144,9 @@ def cmd_run(args):
         seg = Segmenter(args.silence_ms)
         while True:
             utt = seg.feed(mic.read())
-            if utt is not None and not state["muted"]:
+            # with --monitor on speakers, the mic hears the translation; don't translate it again
+            echo = monitor and time.perf_counter() < state["playing_until"] + 0.3
+            if utt is not None and not state["muted"] and not echo:
                 utterances.put(("out", 0, time.perf_counter(), utt))
 
     # each call participant gets their own VAD, so people talking over each other stay separate
@@ -172,8 +190,12 @@ def cmd_run(args):
     threading.Thread(target=listen, daemon=True).start()
     threading.Thread(target=commands, daemon=True).start()
 
-    print(f"\nReady. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.")
-    print(f"You speak → {LANGS[state['to']][0]}. Others → subtitles in {LANGS[args.me][0]}.\n"
+    if args.practice:
+        print(f"\nReady (practice). Talk, and hear yourself in your headphones as '{args.voice}'.")
+    else:
+        print(f"\nReady. In Discord pick input device 'Mentalese-Mic' and turn OFF noise suppression.")
+    others = "" if args.practice else f" Others → subtitles in {LANGS[args.me][0]}."
+    print(f"You speak → {LANGS[state['to']][0]}.{others}\n"
           f"Type anything + Enter to say it in your voice. Commands: /{' /'.join(LANGS)}  /mute  /quit\n> ",
           end="", flush=True)
 
@@ -208,9 +230,11 @@ def cmd_run(args):
             t_tts = None
             for chunk, _ in tts.stream(EMOJI.sub("", out).strip() or out, to):
                 t_tts = t_tts or time.perf_counter()
-                player.play(chunk)
+                if player:
+                    player.play(chunk)
                 if monitor:
                     monitor.play(chunk)
+                    state["playing_until"] = max(state["playing_until"], time.perf_counter()) + len(chunk) / 24000
             t_tts = t_tts or time.perf_counter()
             torch.cuda.empty_cache()  # keeps VRAM ~0.8 GB lower; no measurable latency cost
             wait = f"wait {ms(t_end, t_start)} + " if t_start - t_end > 0.05 else ""
@@ -224,13 +248,12 @@ def cmd_run(args):
 
 
 def cmd_say(args):
-    if not VOICE_WAV.exists():
-        sys.exit("No voice sample yet. Run:  uv run mentalese record")
+    voice_wav, voice_txt = require_voice(args.voice)
     from .mt import Translator
     from .tts import TTS
 
     mt, tts = Translator(style=args.style), TTS()
-    tts.set_voice(str(VOICE_WAV), VOICE_TXT.read_text())
+    tts.set_voice(str(voice_wav), voice_txt.read_text())
     text = " ".join(args.text)
     out = mt.translate(text, None, args.to) if args.to != "en" else text
     print(f"[{args.to}] {out}")
@@ -244,9 +267,13 @@ def cmd_say(args):
 def main():
     p = argparse.ArgumentParser(prog="mentalese")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("record", help="record your voice sample")
+    rec = sub.add_parser("record", help="record a voice sample (yours by default)")
+    rec.add_argument("--voice", default="me", help="name to save it as, e.g. mom")
     r = sub.add_parser("run", help="start translating")
     r.add_argument("--to", default="ru", choices=list(LANGS), help="language Discord hears")
+    r.add_argument("--voice", default="me", help="which recorded voice to speak with")
+    r.add_argument("--practice", action="store_true",
+                   help="hear yourself translated in your headphones; no Discord, no subtitles")
     r.add_argument("--style", default=DEFAULT_STYLE,
                    help='tone of translations, in plain words; --style "" for neutral')
     r.add_argument("--me", default="en", choices=list(LANGS), help="language for subtitles of what others say")
@@ -262,10 +289,17 @@ def main():
     s = sub.add_parser("say", help="hear your cloned voice say something (translated from English)")
     s.add_argument("--to", default="ru", choices=list(LANGS))
     s.add_argument("--style", default=DEFAULT_STYLE)
+    s.add_argument("--voice", default="me")
     s.add_argument("text", nargs="+")
+    sub.add_parser("voices", help="list recorded voices")
     sub.add_parser("remove-mic", help="remove the virtual mic")
     args = p.parse_args()
-    {"record": cmd_record, "run": cmd_run, "say": cmd_say, "remove-mic": lambda a: audio.remove_virtual_mic()}[args.cmd](args)
+    commands = {
+        "record": cmd_record, "run": cmd_run, "say": cmd_say,
+        "voices": lambda a: print("\n".join(sorted(v.stem for v in VOICES.glob("*.wav"))) or "no voices yet"),
+        "remove-mic": lambda a: audio.remove_virtual_mic(),
+    }
+    commands[args.cmd](args)
 
 
 if __name__ == "__main__":

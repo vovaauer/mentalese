@@ -17,6 +17,10 @@ uv run mentalese run --to ru            # go live; type a line + Enter to say it
                                         # /zh /en /ru... to switch, /mute, /quit
 ```
 
+Other voices (e.g. family): `uv run mentalese record --voice mom`, then add `--voice mom` to
+`run` or `say`. `uv run mentalese voices` lists them. To just hear yourself in another language
+in your own headphones, no Discord: `uv run mentalese run --practice --to zh --voice mom`.
+
 In Discord → Voice & Video: set **Input Device** to **Mentalese-Mic** (leave Output on your headphones; never pick
 "Mentalese-Internal", it loops other people back into your mic), and turn off Noise Suppression,
 Echo Cancellation and Automatic Gain Control.
