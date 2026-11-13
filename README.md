@@ -43,6 +43,11 @@ set `CUDA_ARCH=89` (or your GPU's) otherwise. It patches qwentts.cpp's talker ca
 `bench.py` measures each stage and the total VRAM. `tools/e2e.py` plays test clips through
 Mentalese-Mic, so don't run it while you're in a call.
 
+## Roadmap
+
+mentalese runs on Linux today. [ROADMAP.md](ROADMAP.md) is the plan for a GUI and for
+Windows, macOS and any GPU.
+
 ## License
 
 Copyright (C) 2026 Vova Auer. Licensed under the GNU General Public License v3.0 or later: see
