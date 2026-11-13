@@ -42,3 +42,9 @@ set `CUDA_ARCH=89` (or your GPU's) otherwise. It patches qwentts.cpp's talker ca
 
 `bench.py` measures each stage and the total VRAM. `tools/e2e.py` plays test clips through
 Mentalese-Mic, so don't run it while you're in a call.
+
+## License
+
+Copyright (C) 2026 Vova Auer. Licensed under the GNU General Public License v3.0 or later: see
+[LICENSE](LICENSE). The models aren't part of this repository; `tools/setup.sh` downloads each one
+from its maker, under its maker's license.
