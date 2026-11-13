@@ -1,33 +1,18 @@
 [project]
 name = "mentalese"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "faster-qwen3-tts>=0.5.4",
-    "librosa>=1.0.0",
     "lingua-language-detector>=2.2.0",
     "numpy>=2.5.4",
+    "onnxruntime>=1.31.1",
     "requests>=2.34.2",
-    "silero-vad>=6.2.3",
-    "sounddevice>=0.5.6",
     "soundfile>=0.14.0",
-    "torch>=2.11.0",
-    "torchaudio>=2.11.0",
+    "soxr>=1.1.0",
 ]
 
 [tool.uv]
 python-preference = "only-managed"
-# qwen-asr pins transformers 4.57.6, but runs on 5.x; faster-qwen3-tts needs 5.x
-override-dependencies = ["transformers==5.15.1"]
-
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }
-torchaudio = { index = "pytorch-cu128" }
 
 [project.scripts]
 mentalese = "mentalese.__main__:main"

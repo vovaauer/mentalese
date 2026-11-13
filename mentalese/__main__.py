@@ -74,9 +74,11 @@ def cmd_record(args):
     wav = wav / peak * 0.9
     sf.write(wav_path, wav, 24000)
     print("transcribing your sample...")
-    import librosa
+    import soxr
 
-    lang, text = ASR().transcribe(librosa.resample(wav, orig_sr=24000, target_sr=SR))
+    asr = ASR().wait()
+    lang, text = asr.transcribe(soxr.resample(wav, 24000, SR))
+    asr.close()
     txt_path.write_text(text)
     print(f"saved {wav_path.relative_to(ROOT)} ({lang}): {text}")
 
@@ -85,36 +87,30 @@ class Segmenter:
     """Cuts the mic stream into utterances with Silero VAD."""
 
     def __init__(self, silence_ms: int):
-        import torch
-        from silero_vad import VADIterator, load_silero_vad
+        from .vad import VAD
 
-        torch.set_num_threads(1)
-        self.vad = VADIterator(load_silero_vad(), threshold=0.5, sampling_rate=SR,
-                               min_silence_duration_ms=silence_ms, speech_pad_ms=100)
-        self.torch = torch
+        self.vad = VAD(threshold=0.5, min_silence_ms=silence_ms)
         self.preroll = collections.deque(maxlen=10)  # ~320 ms before speech starts
         self.buf = None
 
     def feed(self, frame: np.ndarray) -> np.ndarray | None:
-        ev = self.vad(self.torch.from_numpy(frame.copy()))
+        ev = self.vad(frame)
         if self.buf is None:
             self.preroll.append(frame)
-            if ev and "start" in ev:
+            if ev == "start":
                 self.buf = list(self.preroll)
             return None
         self.buf.append(frame)
-        if (ev and "end" in ev) or len(self.buf) * FRAME > SR * 15:
+        if ev == "end" or len(self.buf) * FRAME > SR * 15:
             utt, self.buf = np.concatenate(self.buf), None
             self.preroll.clear()
-            if "end" not in (ev or {}):
+            if ev != "end":
                 self.vad.reset_states()
             return utt
         return None
 
 
 def cmd_run(args):
-    import torch
-
     voice_wav, voice_txt = require_voice(args.voice)
     if args.practice:  # hear yourself in your headphones only; no Discord, no subtitles
         args.monitor, args.no_subtitles, args.subtitles_from = True, True, None
@@ -127,7 +123,10 @@ def cmd_run(args):
     from .mt import Translator
     from .tts import TTS
 
-    asr, mt, tts = ASR(), Translator(style=args.style), TTS()
+    # the servers load in the background while the voice loads here
+    asr, mt = ASR(gpu_encoder=args.asr_gpu), Translator(style=args.style)
+    tts = TTS()
+    asr.wait(), mt.wait()
     voice_text = voice_txt.read_text()
     tts.set_voice(str(voice_wav), voice_text, lang=langid.detect(voice_text, fallback="en"),
                   keep_accent=args.keep_accent)
@@ -135,7 +134,6 @@ def cmd_run(args):
     asr.transcribe(np.zeros(SR, np.float32))
     mt.translate("hello", "en", "ru")
     tts.warmup()
-    torch.cuda.empty_cache()  # hand back what loading and warmup used but no longer need
     player = None if args.practice else audio.Player(24000, device=audio.SINK)
     monitor = audio.Player(24000) if args.monitor else None
 
@@ -206,7 +204,7 @@ def cmd_run(args):
           end="", flush=True)
 
     ms = lambda a, b: f"{1000 * (b - a):.0f}"
-    # GPU work stays on the main thread, where the TTS CUDA graphs were captured
+    # one sentence at a time, in order: the models each run one request at a time anyway
     try:
         while (item := utterances.get()) is not None:
             kind, num, t_end, utt = item
@@ -227,7 +225,6 @@ def cmd_run(args):
                 sub = mt.translate(text, src, args.me)
                 color = COLORS[num % len(COLORS)]
                 print(f"\r{color}▌ {sub}{RESET}  {DIM}({text}){RESET}\n> ", end="", flush=True)
-                torch.cuda.empty_cache()
                 continue
 
             to = state["to"]
@@ -242,7 +239,6 @@ def cmd_run(args):
                     monitor.play(chunk)
                     state["playing_until"] = max(state["playing_until"], time.perf_counter()) + len(chunk) / 24000
             t_tts = t_tts or time.perf_counter()
-            torch.cuda.empty_cache()  # keeps VRAM ~0.8 GB lower; no measurable latency cost
             wait = f"wait {ms(t_end, t_start)} + " if t_start - t_end > 0.05 else ""
             asr_part = "typed" if kind == "typed" else f"asr {ms(t_start, t_asr)}"
             mode = "native" if tts.uses_fingerprint(to) else "like sample"
@@ -252,6 +248,7 @@ def cmd_run(args):
     except KeyboardInterrupt:
         pass
     mt.close()
+    asr.close()
 
 
 def cmd_say(args):
@@ -259,7 +256,9 @@ def cmd_say(args):
     from .mt import Translator
     from .tts import TTS
 
-    mt, tts = Translator(style=args.style), TTS()
+    mt = Translator(style=args.style)
+    tts = TTS()
+    mt.wait()
     voice_text = voice_txt.read_text()
     tts.set_voice(str(voice_wav), voice_text, lang=langid.detect(voice_text, fallback="en"),
                   keep_accent=args.keep_accent)
@@ -292,6 +291,8 @@ def main():
                    help="how long a pause counts as the end of a sentence (lower = faster, may cut you off)")
     r.add_argument("--their-silence-ms", type=int, default=700,
                    help="same for other people; longer so subtitles get whole sentences, not fragments")
+    r.add_argument("--asr-gpu", action="store_true",
+                   help="run all of speech recognition on the GPU: ~40 ms faster, 0.75 GB more VRAM")
     r.add_argument("--no-subtitles", action="store_true", help="don't listen to the Vesktop plugin")
     r.add_argument("--subtitles-from", metavar="APP",
                    help="also subtitle an app's audio, e.g. Telegram (best for 1:1 calls)")

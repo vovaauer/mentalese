@@ -3,10 +3,13 @@
 Speak one language; people on Discord hear another, in your own voice. Fully local, runs on your GPU.
 
 ```
-mic → Silero VAD → Qwen3-ASR-0.6B → Hy-MT2-7B (llama.cpp) → Qwen3-TTS-0.6B-Base (faster-qwen3-tts) → Mentalese-Mic → Discord
+mic → Silero VAD (ONNX) → Qwen3-ASR-0.6B → Index-Translate-2B → Qwen3-TTS-0.6B-Base → Mentalese-Mic → Discord
+                          └─────────── llama.cpp ───────────┘   qwentts.cpp
 ```
 
-About 0.85 s from the end of your sentence to the first translated sound. Uses about 9 GB of VRAM (4.2 GB speech + 4.9 GB translator).
+About 0.2 s from the end-of-sentence pause (400 ms) to the first translated sound. Uses about
+5 GB of VRAM at peak: speech recognition 1.0 GB, translator 1.5 GB, voice 2.5 GB. No PyTorch.
+`--asr-gpu` makes recognition ~40 ms faster for 0.75 GB more.
 
 ## Use
 
@@ -27,9 +30,15 @@ Echo Cancellation and Automatic Gain Control.
 
 Output languages: en ru zh ja ko de fr es pt it (what Qwen3-TTS can speak). Input: any of ~30 languages, auto-detected.
 
-## Setup notes
+## Setup
 
-- `vendor/llama.cpp` is built with CUDA for sm_120 (RTX 50): `cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120 && cmake --build build -j --target llama-server`
-- `models/Hy-MT2-7B-Q4_K_M.gguf` from `tencent/Hy-MT2-7B-GGUF`
-- transformers is pinned to 5.15.1: faster-qwen3-tts breaks on 5.19.
-- `bench.py` measures each stage.
+```bash
+tools/setup.sh    # builds vendor/llama.cpp and vendor/qwentts.cpp, downloads models/, runs uv sync
+```
+
+Re-running it updates both engines to their latest versions. It builds for RTX 50 (sm_120);
+set `CUDA_ARCH=89` (or your GPU's) otherwise. It patches qwentts.cpp's talker cache from 4096 to
+1024 positions (670 MB less VRAM) and stops if that patch or the library's ABI no longer matches.
+
+`bench.py` measures each stage and the total VRAM. `tools/e2e.py` plays test clips through
+Mentalese-Mic, so don't run it while you're in a call.

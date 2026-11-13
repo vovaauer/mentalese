@@ -1,5 +1,6 @@
 """End-to-end test without a real mic or Discord: plays clips into a fake mic, records what
 Mentalese-Mic outputs, prints mentalese's own timing lines. Needs out/bench_*.wav (bench.py).
+Anything recording Mentalese-Mic hears the test clips: don't run it while you're in a Discord call.
 
 uv run python tools/e2e.py [extra mentalese run args...]
 """
