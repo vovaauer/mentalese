@@ -1,0 +1,153 @@
+# Builds the installers for every platform when a version tag (v0.2.0) is pushed, into a draft
+# release; publish the draft on GitHub when it looks right. Auto-updates need two repository
+# secrets, TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the update signing
+# key); without them the installers are built without update signatures.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (an existing v* tag)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  GH_TOKEN: ${{ github.token }}
+  CARGO_TERM_COLOR: never
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: version matches the tag
+        run: |
+          v=$(grep -m1 '"version"' crates/app/tauri.conf.json | cut -d'"' -f4)
+          [ "v$v" = "$TAG" ] || { echo "tauri.conf.json says $v, tag is $TAG"; exit 1; }
+      - name: draft release
+        run: gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" --draft --title "Mentalese ${TAG#v}" --generate-notes --verify-tag
+
+  build:
+    needs: draft
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Vulkan runs on NVIDIA, AMD and Intel GPUs; the -nvidia builds add CUDA (faster on
+          # NVIDIA, a much bigger download)
+          - { os: ubuntu-24.04, flavor: "", backends: "vulkan cpu", bundles: "deb,rpm,appimage" }
+          - { os: ubuntu-24.04, flavor: "-nvidia", backends: "cuda vulkan cpu", bundles: "deb,appimage" }
+          - { os: windows-2025, flavor: "", backends: "vulkan cpu", bundles: "nsis" }
+          - { os: windows-2025, flavor: "-nvidia", backends: "cuda vulkan cpu", bundles: "nsis" }
+          - { os: macos-15, flavor: "", backends: "metal", bundles: "app,dmg" }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: engine sources (the versions in tools/engines.lock)
+        run: tools/fetch-engines.sh --locked
+
+      - name: Linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libsoup-3.0-dev patchelf \
+            libvulkan-dev glslc rpm
+
+      - name: Vulkan headers (Linux)
+        if: runner.os == 'Linux' && contains(matrix.backends, 'vulkan')
+        run: tools/vulkan-headers.sh
+
+      - name: Vulkan SDK (Windows)
+        if: runner.os == 'Windows' && contains(matrix.backends, 'vulkan')
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe -OutFile vulkan_sdk.exe
+          Start-Process ./vulkan_sdk.exe -Wait -ArgumentList '--root', 'C:\VulkanSDK', '--accept-licenses', '--default-answer', '--confirm-command', 'install'
+          "VULKAN_SDK=C:\VulkanSDK" >> $env:GITHUB_ENV
+          "C:\VulkanSDK\Bin" >> $env:GITHUB_PATH
+
+      - name: CUDA (Linux)
+        if: runner.os == 'Linux' && contains(matrix.backends, 'cuda')
+        run: |
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cuda-toolkit
+          echo /usr/local/cuda/bin >> "$GITHUB_PATH"
+          echo CUDA_PATH=/usr/local/cuda >> "$GITHUB_ENV"
+
+      - name: CUDA (Windows)
+        if: runner.os == 'Windows' && contains(matrix.backends, 'cuda')
+        shell: pwsh
+        env:
+          CUDA: "13.4.0" # the toolkit release to build with; bump with new releases
+        run: |
+          $short = $env:CUDA.Substring(0, $env:CUDA.LastIndexOf('.'))
+          Invoke-WebRequest "https://developer.download.nvidia.com/compute/cuda/$env:CUDA/network_installers/cuda_$($env:CUDA)_windows_network.exe" -OutFile cuda.exe
+          Start-Process ./cuda.exe -Wait -ArgumentList '-s', "nvcc_$short", "cudart_$short", "cublas_$short", "cublas_dev_$short", "visual_studio_integration_$short"
+          $dir = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$short"
+          "CUDA_PATH=$dir" >> $env:GITHUB_ENV
+          "$dir\bin" >> $env:GITHUB_PATH
+
+      - name: engines
+        run: tools/build-engines.sh --dist ${{ matrix.backends }}
+
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version 2.12.4 --locked
+
+      - name: app and installers
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          conf='{}'
+          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || conf='{"bundle":{"createUpdaterArtifacts":false}}'
+          if [ -n "${{ matrix.flavor }}" ]; then
+            # each flavor updates from its own manifest, so updates keep the CUDA engines
+            conf=$(echo "$conf" | jq -c '.plugins.updater.endpoints = ["https://github.com/${{ github.repository }}/releases/latest/download/latest${{ matrix.flavor }}.json"]')
+          fi
+          cd crates/app
+          cargo tauri build --bundles ${{ matrix.bundles }} -c "$conf"
+
+      - name: upload
+        run: tools/release-upload.sh "$TAG" "${{ matrix.flavor }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.os }}${{ matrix.flavor }}
+          path: build/updater-*.json
+          if-no-files-found: ignore
+
+  updater-manifests:
+    needs: build
+    if: always() && needs.build.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-*
+          merge-multiple: true
+          path: updater
+      - name: latest.json and latest-nvidia.json
+        run: |
+          shopt -s nullglob
+          files=(updater/*.json)
+          [ ${#files[@]} -gt 0 ] || { echo "no signed builds (no signing key secret): no auto-update manifests"; exit 0; }
+          for flavor in "" "-nvidia"; do
+            # the -nvidia manifest falls back to the standard builds where there's no CUDA one (macOS)
+            jq -s --arg v "${TAG#v}" --arg f "$flavor" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+              {version: $v, pub_date: $d, notes: "See the release notes on GitHub.",
+               platforms: (map(select(.flavor == "")) + map(select(.flavor == $f and $f != ""))
+                           | map({(.platform): {signature, url}}) | add)}' "${files[@]}" > "latest$flavor.json"
+          done
+          gh release upload "$TAG" latest.json latest-nvidia.json --clobber --repo "${{ github.repository }}"

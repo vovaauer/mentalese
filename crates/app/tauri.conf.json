@@ -1,0 +1,77 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mentalese",
+  "mainBinaryName": "mentalese-app",
+  "version": "0.2.0",
+  "identifier": "io.github.vovaauer.mentalese",
+  "build": {
+    "frontendDist": "ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Mentalese",
+        "width": 980,
+        "height": 740,
+        "minWidth": 360,
+        "minHeight": 520
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "engines/": "engines/"
+    },
+    "category": "Utility",
+    "shortDescription": "Speak any language in your own voice",
+    "longDescription": "Talk in your language; people on Discord (or any app) hear you in theirs, in your own cloned voice, and you get live subtitles of what they say. Runs fully on your computer.",
+    "license": "GPL-3.0-or-later",
+    "licenseFile": "../../LICENSE",
+    "homepage": "https://github.com/vovaauer/mentalese",
+    "linux": {
+      "deb": {
+        "depends": [
+          "pulseaudio-utils | pipewire-pulse"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "pulseaudio-utils"
+        ]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.2"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCMUE3QjIxOTQ3OERBRjEKUldUeDJuaVVJWHNhYTBsWmMwSEl5RURCLzBKWGdxanFzUzJkUlkyMDZCRkdQNU9DZXdMcFcwdTAK",
+      "endpoints": [
+        "https://github.com/vovaauer/mentalese/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

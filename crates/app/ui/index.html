@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mentalese</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img src="icon.png" alt=""><span>Mentalese</span></div>
+    <span id="status" class="pill">Stopped</span>
+    <button id="openSettings" class="ghost" aria-label="Settings">Settings</button>
+  </header>
+
+  <div id="update" class="update" hidden>
+    <span id="updateText"></span>
+    <button id="updateBtn" class="primary small">Update and restart</button>
+  </div>
+
+  <main>
+    <section id="setupModels" class="card setup" hidden>
+      <h2>Get the speech models</h2>
+      <p>Mentalese runs entirely on your computer: nothing you say leaves it. It needs
+        <b id="missingSize"></b> of speech models, downloaded once.</p>
+      <button id="downloadBtn" class="primary">Download</button>
+      <div id="downloads" class="downloads"></div>
+    </section>
+
+    <section id="setupVoice" class="card setup" hidden>
+      <h2>Record your voice</h2>
+      <p>Read a short text out loud for 15 seconds. Mentalese then speaks every language in this voice.</p>
+      <button class="primary" data-record="me">Record my voice</button>
+    </section>
+
+    <section id="live" hidden>
+      <div class="card controls">
+        <div class="pickers">
+          <label>They hear me in<select id="to"></select></label>
+          <label>Subtitles in<select id="me"></select></label>
+          <label>Voice<select id="voice"></select></label>
+        </div>
+        <div class="actions">
+          <button id="startBtn" class="primary big">Start</button>
+          <button id="muteBtn" class="toggle" aria-pressed="false" disabled>Mute mic</button>
+        </div>
+      </div>
+      <div id="hint" class="hint" hidden></div>
+      <div id="feed" class="feed" aria-live="polite">
+        <p class="empty">Press <b>Start</b> and talk. What you say, how it was translated, and subtitles
+          of what others say show up here.</p>
+      </div>
+      <form id="typeForm" class="type">
+        <input id="typeInput" placeholder="Type and press Enter to say it in your voice" autocomplete="off" disabled>
+        <button class="primary" id="sayBtn" disabled>Say</button>
+      </form>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog" class="sheet">
+      <header><h2>Settings</h2><button class="ghost" value="close" aria-label="Close">Close</button></header>
+
+      <h3>Sound</h3>
+      <label class="row">Microphone<select id="s-mic"></select></label>
+      <label class="row">Headphones<select id="s-headphones"></select></label>
+      <label class="check"><input type="checkbox" id="s-monitor"> Also hear my translated voice in my headphones</label>
+      <label class="check"><input type="checkbox" id="s-practice"> Practice mode: hear myself translated, without joining a call</label>
+
+      <h3>Subtitles of what others say</h3>
+      <label class="check"><input type="checkbox" id="s-plugin"> Each person separately (needs the Vesktop plugin)</label>
+      <label class="row">From an app's sound<span class="inline"><select id="s-app"></select>
+        <button type="button" class="ghost small" id="refreshApps">Refresh</button></span></label>
+      <p class="note">Pick the app your call is in while the call is going. Works best for one-on-one calls.</p>
+
+      <h3>Your voice</h3>
+      <div id="voiceList" class="voices"></div>
+      <button type="button" class="ghost" data-record="">Record another voice</button>
+      <label class="check"><input type="checkbox" id="s-accent"> Keep my accent in other languages (sounds more like me, less native)</label>
+
+      <h3>Translation</h3>
+      <label class="row">Tone<input id="s-style" placeholder="neutral"></label>
+      <p class="note">In plain words, e.g. "polite and formal". Empty for neutral.
+        <button type="button" class="link" id="resetStyle">Use the default</button></p>
+      <label class="row">Pause that ends my sentence<span class="inline"><input type="range" id="s-silence" min="200" max="1200" step="50"><output id="o-silence"></output></span></label>
+      <label class="row">Pause that ends theirs<span class="inline"><input type="range" id="s-their" min="300" max="1500" step="50"><output id="o-their"></output></span></label>
+      <label class="check"><input type="checkbox" id="s-asrgpu"> Faster speech recognition (uses 0.75 GB more graphics memory)</label>
+
+      <h3>About</h3>
+      <p class="note">Models and voices are kept in <code id="dataDir"></code>.<br>
+        Mentalese is free software (GPL-3.0). <button type="button" class="link" data-url="https://github.com/vovaauer/mentalese">Source code</button></p>
+      <p class="note">Changes to sound and subtitles apply the next time you press Start.</p>
+    </form>
+  </dialog>
+
+  <dialog id="recorder">
+    <div class="sheet">
+      <header><h2>Record a voice</h2></header>
+      <label class="row">Name<input id="r-name" maxlength="40"></label>
+      <p>Press Record, then read this out loud at your normal pace and volume:</p>
+      <blockquote id="r-text"></blockquote>
+      <div class="meter"><div id="r-bar"></div></div>
+      <p id="r-msg" class="note"></p>
+      <footer>
+        <button type="button" class="ghost" id="r-cancel">Cancel</button>
+        <button type="button" class="primary" id="r-go">Record</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

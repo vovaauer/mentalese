@@ -1,0 +1,4 @@
+# Engine versions releases are built from. tools/setup.sh updates them to the newest after a
+# successful build; CI checks these exact commits out.
+llama.cpp https://github.com/ggml-org/llama.cpp 5676dfbe01e7ebe0387913680eee0ed39bf4a363
+qwentts.cpp https://github.com/ServeurpersoCom/qwentts.cpp de2ad833e9bd5c06082231d1da637789f7562816

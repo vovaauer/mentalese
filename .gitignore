@@ -6,3 +6,8 @@ __pycache__/
 *.wav
 *.log
 out/
+/target/
+/build/
+/crates/app/engines/*
+!/crates/app/engines/.keep
+/crates/app/gen/
