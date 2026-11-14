@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CI: uploads this runner's installers to the GitHub release and writes the auto-update entry for
-# its platform (build/updater-*.json, merged into latest*.json by the workflow's last job).
+# CI: uploads this runner's installers to the GitHub release and writes the auto-update entries for
+# them (build/updater-*.json, merged into latest*.json by the workflow's last job).
 #   tools/release-upload.sh v0.2.0 [-nvidia]
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -24,9 +24,23 @@ for f in $B/deb/*.deb $B/rpm/*.rpm $B/appimage/*.AppImage $B/nsis/*-setup.exe $B
 done
 gh release upload "$TAG" build/upload/* --clobber --repo "$REPO"
 
-# the file the updater installs: the AppImage, the NSIS installer, or the .app archive
-upd=$(ls build/upload/*.AppImage build/upload/*-setup*.exe build/upload/*.app.tar.gz 2>/dev/null | head -1 || true)
-if [ -n "$upd" ] && [ -f "$upd.sig" ]; then
+# Auto-update entries. The updater installs the same format the app was installed from (a .deb
+# updates through dpkg, an AppImage replaces itself), looking for "<platform>-<format>" first,
+# then plain "<platform>".
+out="build/updater-$PLATFORM$FLAVOR.json"
+: > "$out"
+entry() { # manifest key, file
+    [ -f "$2.sig" ] || return 0
     printf '{"platform":"%s","flavor":"%s","signature":"%s","url":"https://github.com/%s/releases/download/%s/%s"}\n' \
-        "$PLATFORM" "$FLAVOR" "$(cat "$upd.sig")" "$REPO" "$TAG" "$(basename "$upd")" > "build/updater-$PLATFORM$FLAVOR.json"
-fi
+        "$1" "$FLAVOR" "$(cat "$2.sig")" "$REPO" "$TAG" "$(basename "$2")" >> "$out"
+}
+for f in build/upload/*; do
+    case $f in
+        *.AppImage) entry "$PLATFORM-appimage" "$f"; entry "$PLATFORM" "$f" ;;
+        *.deb) entry "$PLATFORM-deb" "$f" ;;
+        *.rpm) entry "$PLATFORM-rpm" "$f" ;;
+        *-setup*.exe) entry "$PLATFORM-nsis" "$f"; entry "$PLATFORM" "$f" ;;
+        *.app.tar.gz) entry "$PLATFORM-app" "$f"; entry "$PLATFORM" "$f" ;;
+    esac
+done
+[ -s "$out" ] || rm "$out"
